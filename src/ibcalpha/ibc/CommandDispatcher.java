@@ -1,6 +1,7 @@
 // This file is part of IBC.
 // Copyright (C) 2004 Steven M. Kearns (skearns23@yahoo.com )
 // Copyright (C) 2004 - 2018 Richard L King (rlking@aultan.com)
+// Copyright (C) 2022 Brocksdorff <antonb@ath.mooo.com>
 // For conditions of distribution and use, see copyright notice in COPYING.txt
 
 // IBC is free software: you can redistribute it and/or modify
@@ -20,6 +21,7 @@ package ibcalpha.ibc;
 
 import java.awt.event.KeyEvent;
 import java.util.concurrent.TimeUnit;
+import javax.swing.JButton;
 import javax.swing.JFrame;
 
 class CommandDispatcher
@@ -33,7 +35,8 @@ class CommandDispatcher
         mIsGateway = isGateway;
     }
 
-    @Override public void run() {
+    @Override
+    public void run() {
         String cmd = mChannel.getCommand();
         while (cmd != null) {
             if (cmd.equalsIgnoreCase("EXIT")) {
@@ -44,9 +47,13 @@ class CommandDispatcher
             } else if (cmd.equalsIgnoreCase("ENABLEAPI")) {
                 handleEnableAPICommand();
             } else if (cmd.equalsIgnoreCase("RECONNECTDATA")) {
-            	handleReconnectDataCommand();
+                handleReconnectDataCommand();
             } else if (cmd.equalsIgnoreCase("RECONNECTACCOUNT")) {
-            	handleReconnectAccountCommand();
+                handleReconnectAccountCommand();
+            } else if (cmd.equalsIgnoreCase("PING")) {
+                mChannel.writeAck("PONG");
+            } else if (cmd.equalsIgnoreCase("ENABLETRADING")) {
+                findAndpushButton();
             } else {
                 handleInvalidCommand(cmd);
             }
@@ -69,7 +76,7 @@ class CommandDispatcher
 
         // run on the current thread
         (new ConfigurationTask(new EnableApiTask(mChannel))).execute();
-   }
+    }
 
     private void handleReconnectDataCommand() {
         JFrame jf = MainWindowManager.mainWindowManager().getMainWindow(1, TimeUnit.MILLISECONDS);
@@ -81,9 +88,9 @@ class CommandDispatcher
         jf.dispatchEvent(pressed);
         jf.dispatchEvent(typed);
         jf.dispatchEvent(released);
-  
+
         mChannel.writeAck("");
-   }
+    }
 
     private void handleReconnectAccountCommand() {
         JFrame jf = MainWindowManager.mainWindowManager().getMainWindow();
@@ -101,6 +108,26 @@ class CommandDispatcher
 
     private void handleStopCommand() {
         (new StopTask(mChannel, mIsGateway)).run();     // run on the current thread
+    }
+
+    private void findAndpushButton() {
+        JFrame jf = MainWindowManager.mainWindowManager().getMainWindow();
+        JButton button = SwingUtils.findButton(jf, TradingLoginDialogHandler.WINDOWTITLE);
+
+        if (button == null) {
+            mChannel.writeNack("Button not found!");
+        } else {
+            if (button.isVisible()) {
+                if (SwingUtils.clickButton(jf, TradingLoginDialogHandler.WINDOWTITLE)) {
+                    mChannel.writeAck("Button found and clicked.");
+                } else {
+                    mChannel.writeNack("Button click failed!");
+                }
+            } else {
+                mChannel.writeAck("Trading Login already done.");
+            }
+        }
+
     }
 
 }

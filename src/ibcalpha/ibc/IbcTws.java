@@ -1,6 +1,7 @@
 // This file is part of IBC.
 // Copyright (C) 2004 Steven M. Kearns (skearns23@yahoo.com )
 // Copyright (C) 2004 - 2018 Richard L King (rlking@aultan.com)
+// Copyright (C) 2022 Brocksdorff <antonb@ath.mooo.com>
 // For conditions of distribution and use, see copyright notice in COPYING.txt
 
 // IBC is free software: you can redistribute it and/or modify
@@ -327,8 +328,10 @@ public class IbcTws {
         // this line must come before the one for SecurityCodeDialogHandler
         // because both contain an "Enter Read Only" button
         windowHandlers.add(SecondFactorAuthenticationDialogHandler.getInstance());
-        windowHandlers.add(new SecurityCodeDialogHandler());
-        
+
+        //What does this handler do?
+//        windowHandlers.add(new SecurityCodeDialogHandler());
+
         windowHandlers.add(new ReloginDialogHandler());
         windowHandlers.add(new NonBrokerageAccountDialogHandler());
         windowHandlers.add(new ExitConfirmationDialogHandler());
@@ -339,6 +342,8 @@ public class IbcTws {
         windowHandlers.add(new BidAskLastSizeDisplayUpdateDialogHandler());
         windowHandlers.add(new LoginErrorDialogHandler());
         windowHandlers.add(new CryptoOrderConfirmationDialogHandler());
+        windowHandlers.add(SecondFactorAuthenticationDialogHandler.getInstance().getHandler());
+        windowHandlers.add(new OrderTradingLoginDialogHandler());
         
         return windowHandlers;
     }

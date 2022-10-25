@@ -1,6 +1,7 @@
 // This file is part of IBC.
 // Copyright (C) 2004 Steven M. Kearns (skearns23@yahoo.com )
 // Copyright (C) 2004 - 2018 Richard L King (rlking@aultan.com)
+// Copyright (C) 2022 Brocksdorff <antonb@ath.mooo.com>
 // For conditions of distribution and use, see copyright notice in COPYING.txt
 
 // IBC is free software: you can redistribute it and/or modify
@@ -29,6 +30,11 @@ import java.util.Properties;
 import java.util.Set;
 
 public class DefaultSettings extends Settings {
+
+    public static final int DELAY_READONLY = 120;
+    public static final int DELAY_TRADING_LOGIN = 120;
+    public static final int DELAY_DIALOG_DISMISS = 10;
+
 
     private final Properties props = new Properties();
     private String path;

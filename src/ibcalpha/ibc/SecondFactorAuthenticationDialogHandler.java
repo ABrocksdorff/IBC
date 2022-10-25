@@ -1,90 +1,130 @@
 // This file is part of IBC.
 // Copyright (C) 2004 Steven M. Kearns (skearns23@yahoo.com )
 // Copyright (C) 2004 - 2021 Richard L King (rlking@aultan.com)
+// Copyright (C) 2022 Brocksdorff <antonb@ath.mooo.com>
 // For conditions of distribution and use, see copyright notice in COPYING.txt
-
 // IBC is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
-
 // IBC is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
-
 // You should have received a copy of the GNU General Public License
 // along with IBC.  If not, see <http://www.gnu.org/licenses/>.
-
 package ibcalpha.ibc;
 
 import java.awt.Window;
-import java.awt.event.WindowEvent;
+import java.time.Duration;
 import javax.swing.JDialog;
 import javax.swing.JFrame;
 import javax.swing.JList;
 import javax.swing.ListModel;
+import javax.swing.Timer;
 
-public class SecondFactorAuthenticationDialogHandler implements WindowHandler {
-    private SecondFactorAuthenticationDialogHandler() {};
-    
+public class SecondFactorAuthenticationDialogHandler extends DefaultWindowHandler {
+
+    private static final String WINDOWTITLE = "Second Factor Authentication";
+    private static final String BUTTONTITLE = "Enter Read Only";
+    private final Duration readOnlyDelay;
+    private final Duration tradingLoginDelay;
+    private final TradingLoginDialogHandler handler;
+    private Timer timer;
+
+    private SecondFactorAuthenticationDialogHandler() {
+        this.handler = new TradingLoginDialogHandler();
+        this.readOnlyDelay = Duration.ofSeconds(Settings.settings().getInt("DelayReadOnly", DefaultSettings.DELAY_READONLY));
+        this.tradingLoginDelay = Duration.ofSeconds(Settings.settings().getInt("DelayTradingLogin", DefaultSettings.DELAY_TRADING_LOGIN));
+    }
+
     static SecondFactorAuthenticationDialogHandler _secondFactorAuthenticationDialogHandler = new SecondFactorAuthenticationDialogHandler();
-    
+
     static SecondFactorAuthenticationDialogHandler getInstance() {
         return _secondFactorAuthenticationDialogHandler;
     }
-    
+
+    /**
+     *
+     * @return
+     */
+    final public TradingLoginDialogHandler getHandler() {
+        return handler;
+    }
+
     @Override
-    public boolean filterEvent(Window window, int eventId) {
-        switch (eventId) {
-            case WindowEvent.WINDOW_OPENED:
-                return true;
-            case WindowEvent.WINDOW_CLOSED:
-                return true;
-            default:
-                return false;
+    public void onClosed(Window window) {
+        if (timer != null) {
+            if (timer.isRunning()) {
+                timer.stop();
+                Utils.logToConsole(WINDOWTITLE + " timer stopped");
+            }
+            timer = null; //GC
+        }
+        if (LoginManager.loginManager().getLoginState() == LoginManager.LoginState.TWO_FA_IN_PROGRESS) {
+            LoginManager.loginManager().secondFactorAuthenticationDialogClosed();
         }
     }
 
     @Override
-    public void handleWindow(Window window, int eventID) {
-        if (eventID == WindowEvent.WINDOW_OPENED) {
+    public void onOpend(Window window) {
+        if (LoginManager.loginManager().getLoginState() == LoginManager.LoginState.LOGGED_IN) {
+            //TradingLoginDialogHandler in read-only-mode
+            handler.setCancel();
+            Utils.logToConsole("Click " + WINDOWTITLE + "::" + StringConstants.CANCEL + " in " + tradingLoginDelay.toString());
+            timer = new Timer((int) tradingLoginDelay.toMillis(), (e) -> {
+                if (SwingUtils.clickButton(window, StringConstants.CANCEL)) {
+                    Utils.logToConsole(WINDOWTITLE + "::" + StringConstants.CANCEL + " clicked");
+                } else {
+                    Utils.logError(WINDOWTITLE + "::" + StringConstants.CANCEL + " clicking failed");
+                }
+            });
+            timer.setRepeats(false);
+            timer.start();
+        } else {
             if (LoginManager.loginManager().readonlyLoginRequired()) {
-                doReadonlyLogin(window);
-            } else if (secondFactorDeviceSelectionRequired(window)) {
-                selectSecondFactorDevice(window);
-            } else {
-                LoginManager.loginManager().setLoginState(LoginManager.LoginState.TWO_FA_IN_PROGRESS);
+                //the stuff already there, just add delay to enter read-only-mode
+                if (SwingUtils.findButton(window, BUTTONTITLE) == null) {
+                    Utils.logError(WINDOWTITLE + " no " + BUTTONTITLE + " to be found, continue anyway");
+                }
+                Utils.logToConsole("Click " + WINDOWTITLE + "::" + BUTTONTITLE + " in " + readOnlyDelay.toString());
+                timer = new Timer((int) readOnlyDelay.toMillis(), (e) -> {
+                    doReadonlyLogin(window);
+                });
+                timer.setRepeats(false);
+                timer.start();
             }
-        } else if (eventID == WindowEvent.WINDOW_CLOSED) {
-            if (LoginManager.loginManager().readonlyLoginRequired()) return;
-            LoginManager.loginManager().secondFactorAuthenticationDialogClosed();
+            if (secondFactorDeviceSelectionRequired(window)) {
+                selectSecondFactorDevice(window);
+            }
+            LoginManager.loginManager().setLoginState(LoginManager.LoginState.TWO_FA_IN_PROGRESS);
         }
     }
 
     @Override
     public boolean recogniseWindow(Window window) {
         // For TWS this window is a JFrame; for Gateway it is a JDialog
-        if (! (window instanceof JDialog || window instanceof JFrame)) return false;
-        
-        return SwingUtils.titleContains(window, "Second Factor Authentication");
+        if (!(window instanceof JDialog || window instanceof JFrame)) {
+            return false;
+        }
+        return SwingUtils.titleContains(window, WINDOWTITLE);
     }
 
-    private void doReadonlyLogin(Window window){
-        if (SwingUtils.clickButton(window, "Enter Read Only")) {
+    private void doReadonlyLogin(Window window) {
+        if (SwingUtils.clickButton(window, BUTTONTITLE)) {
             Utils.logToConsole("initiating read-only login.");
         } else {
             Utils.logError("could not initiate read-only login.");
         }
     }
-    
+
     private boolean secondFactorDeviceSelectionRequired(Window window) {
         // this area appears in the Second Factor Authentication dialog when the
         // user has enabled more than one second factor authentication method
 
         return (SwingUtils.findTextArea(window, "Select second factor device") != null);
     }
-    
+
     private void selectSecondFactorDevice(Window window) {
         JList<?> deviceList = SwingUtils.findList(window, 0);
         if (deviceList == null) {
@@ -112,5 +152,5 @@ public class SecondFactorAuthenticationDialogHandler implements WindowHandler {
         }
         Utils.logError("could not find second factor device '" + secondFactorDevice + "' in the list");
     }
-    
+
 }
